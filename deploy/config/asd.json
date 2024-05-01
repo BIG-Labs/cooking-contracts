@@ -1,0 +1,43 @@
+{
+    "burner": "osmo1xp3j65upkqnx2thlyma9dtr8flg66n4y0mhrnw",
+    "cook_token": {
+        "description": "cook",
+        "name": "cook",
+        "total_supply": "1000000000000",
+        "symbol": "cook-1",
+        "uri": "",
+        "uri_hash": ""
+    },
+    "cookie_token": {
+        "description": "cookie",
+        "name": "cookie",
+        "total_supply": "1000000000000",
+        "symbol": "cookie-1",
+        "uri": "",
+        "uri_hash": ""
+    },
+    "cookie_ratio": "0.1",
+    "cookie_owner_reward": "100000000000",
+    "fee_collector": "osmo1xp3j65upkqnx2thlyma9dtr8flg66n4y0mhrnw",
+    "flambe_code_id": 7910,
+    "flambe_fee_creation": {
+        "denom": "uosmo",
+        "amount": "10000000"
+    },
+    "flambe_settings": [
+        {
+            "pair_denom": "uosmo",
+            "threshold": "500000000",
+            "initial_price": "0.1",
+            "initial_supply": "1000000000000",
+            "pool_creation_info": {
+                "tick_spacing": 100,
+                "spread_factor": "0.001",
+                "lower_tick": -108000000,
+                "upper_tick": 342000000
+            }
+        }
+    ],
+    "owner": "osmo1xp3j65upkqnx2thlyma9dtr8flg66n4y0mhrnw",
+    "swap_fee": "0.01"
+}

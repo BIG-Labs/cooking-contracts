@@ -1,0 +1,26 @@
+[workspace]
+# let members inline
+members = ["package", "contracts/*", "test", "deploy"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Jiooji"]
+
+[workspace.dependencies]
+cosmwasm-schema = "1.5.0"
+cosmwasm-std = "1.5.0"
+cw-storage-plus = "1.2.0"
+schemars = "0.8.16"
+astroport = "3.6.1"
+osmosis-std = "0.22.0"
+serde = { version = "1.0.194", default-features = false, features = ["derive"] }
+thiserror = "1.0.56"
+rhaki-cw-plus = "2.0.5"
+ratatouille-pkg = { path = "./package", version = "0.1.0" }
+ratatouille-factory = { path = "./contracts/ratatouille_factory", version = "0.1.0" }
+ratatouille = { path = "./contracts/ratatouille", version = "0.1.0" }
+flambe-factory = { path = "./contracts/flambe_factory", version = "0.1.0" }
+flambe = { path = "./contracts/flambe", version = "0.1.0" }
+prost = "0.12.4"
+cw-multi-test = "0.20.0"

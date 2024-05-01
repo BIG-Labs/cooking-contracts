@@ -1,0 +1,13 @@
+[package]
+name                 = "flambe-deploy"
+version              = { workspace = true }
+edition              = { workspace = true }
+
+[dependencies]
+cosmwasm-std         = { workspace = true }
+rhaki-cw-plus        = { workspace = true, features = ["deploy"] }
+serde                = { workspace = true }
+
+flambe               = { workspace = true }
+flambe-factory       = { workspace = true }
+ratatouille-pkg      = { workspace = true }
