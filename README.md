@@ -5,11 +5,10 @@ You can find information about the usage and function of the smart contracts on 
 
 ## Contracts
 
-| Contract                                                     | Description                                                                           |
-|--------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| [`flambè`](./contracts/flambe)                       | Represents a single Flambe, containing all its code and liquidity                         |
-| [`flambe-factory`](./contracts/flambe-factory)       | Serves as a proxy to create flambè, storing their addresses and global configurations   |
-
+| Contract                                                     | Description                                                                           | Hash                                                                                  |
+|--------------------------------------------------------------|---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| [`flambè`](./contracts/flambe)                       | Represents a single Flambe, containing all its code and liquidity                         | TBD|
+| [`flambe-factory`](./contracts/flambe-factory)       | Serves as a proxy to create flambè, storing their addresses and global configurations   | TBD|
 ## Development
 
 ### Environment Setup
