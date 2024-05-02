@@ -108,6 +108,9 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 
             let main_balance = get_main_amount(deps.as_ref(), &env, &config)?;
 
+            let price = Decimal::from_ratio(paired_balance + config.virtual_reserve, main_balance);
+            let deploy_balance = paired_balance * (Decimal::one() / price);
+
             let create_position_msg = MsgCreatePosition {
                 pool_id,
                 sender: env.contract.address.to_string(),
@@ -116,7 +119,7 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
                 tokens_provided: vec![
                     ProtoCoin {
                         denom: config.main_denom.clone(),
-                        amount: main_balance.to_string(),
+                        amount: deploy_balance.to_string(),
                     },
                     ProtoCoin {
                         denom: config.flambe_setting.pair_denom.clone(),

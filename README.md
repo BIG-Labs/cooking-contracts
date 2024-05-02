@@ -109,5 +109,3 @@ Despite the terms of the License, no person or entity shall be permitted to copy
 
 Redistribution Restrictions:
 Despite the terms of the License, no person or entity shall be permitted to redistribute, share, or make publicly available any portion of the Software or derivative works thereof.
-
-
