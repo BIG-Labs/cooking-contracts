@@ -1,17 +1,12 @@
-
-use rhaki_cw_plus::{
-    deploy::{
-        functions::{deploy_create_wallet, store_code},
-        tokio, Deploier,
-    },
+use rhaki_cw_plus::deploy::{
+    functions::{deploy_create_wallet, store_code},
+    tokio, Deploier,
 };
 #[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() {
     use flambe_deploy::data::Data;
-    use rhaki_cw_plus::deploy::cosmos_grpc_client::{
-        GrpcClient,
-    };
+    use rhaki_cw_plus::deploy::cosmos_grpc_client::GrpcClient;
 
     let mut c = Data::read_data().unwrap();
 
@@ -19,8 +14,6 @@ async fn main() {
     let mut wallet = deploy_create_wallet(&mut grpc, &c.chain_info)
         .await
         .unwrap();
-
-    println!("{:?}", grpc.chain_id);
 
     let _wallet_addr = wallet.account_address();
 

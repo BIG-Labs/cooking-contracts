@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Decimal;
 use ratatouille_pkg::{
     flambe::definitions::FlambeStatus,
     flambe_factory::{definitions::CreateFactoryInput, msgs::FlambeFilter},
@@ -51,6 +51,8 @@ fn t1() {
     let user_1_swap = osmo.to_asset(1_000u128.into_decimal());
     app.mint(&user_1, user_1_swap.clone());
 
+    // Buy 1_000 osmo
+
     let res = run_swap(&mut app, &def, &user_1, &flambe.flambe_address, 0_u128, user_1_swap).unwrap();
 
     let swap = parse_swap_output_from_response(res);
@@ -71,36 +73,65 @@ fn t1() {
     assert_eq!(flambe.main_amount, (token.to_asset(1_000_000_u128.into_decimal()) - &swap.output).amount_raw());
     assert_eq!(flambe.pair_amount, (swap.input - swap.fee).amount_raw());
 
+    // Sell 5_000 tokens
+
     let res = run_swap(&mut app, &def, &user_1, &flambe.flambe_address, 0_u128, swap.output.clone_with_amount(5_000_u128.into_decimal())).unwrap();
 
     let swap = parse_swap_output_from_response(res);
 
     // Reserve: 100_000
-    // Swap_input = 4_950
+    // Swap_input = 5_000
     // main_balance = 990_197,049213 (ask)
-    // pair_balance = 100_990    (offer)
-    // output = 100_990 - (100_990 * 990_197,049213 / (990_197,049213 + 4_950)) = "502.338323"
+    // pair_balance = 100_990        (offer)
+    // output = 100_990 - (100_990 * 990_197,049213 / (990_197,049213 + 5_000)) = 507,386954
+    // fee = 507,386954 * 0,01 = 5,073869
+    // output = 507,386954 - 5,07386954 = 502,313085
 
-    assert_eq!(swap.output.amount_precisioned().unwrap(), "502.338323".into_decimal());
-    assert_eq!(app.qy_balance(&def.fee_collector, &osmo).unwrap().amount_precisioned().unwrap(), 11_u128.into_decimal());
-    assert_eq!(app.qy_balance(&def.fee_collector, &token).unwrap().amount_precisioned().unwrap(), 50_u128.into_decimal());
+    // new main_balance = 990_197,049213 + 5_000 = 995_197,049213
+    // new pair_balance = 100_990 - 507,386954 = 100_482,613046
 
-    // Go to the end
+    assert_eq!(swap.output.amount_precisioned().unwrap(), "502.313085".into_decimal());
+    assert_eq!(app.qy_balance(&def.fee_collector, &osmo).unwrap().amount_precisioned().unwrap(), 11_u128.into_decimal() + "5.073869".into_decimal());
+    assert_eq!(app.qy_balance(&def.fee_collector, &token).unwrap().amount_precisioned().unwrap(), Decimal::zero());
+
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &token).unwrap().amount_precisioned().unwrap(), "995197.049213".into_decimal());
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &osmo).unwrap().amount_precisioned().unwrap(), "482.613046".into_decimal());
+
+    // Go to the end with 50_500 osmo inside
+
+    // 482.613046 + x * (1-0.01) = 50_500
+    // x ~= 50_522,613084
+    // input after fee = 50_522,613084 * (1-0.01) = 50_017,38695
+    // output = 995_197,049213 - (995_197,049213 * 100_482,613046 / (100_482,613046 + 50_017,38695)) = 330_745,221948
+
+    // after swap token amount = 664_451.827247
+    // after swap osmo amount = 50_500
 
     let user_2 = app.generate_addr("user_2");
-    let user_2_swap = osmo.to_asset(def.flambe_settings[0].threshold * (Decimal::one() + def.swap_fee) + Uint128::one());
+    let user_2_swap = osmo.to_asset("50522.613084".into_decimal());
     app.mint(&user_2, user_2_swap.clone());
 
     run_swap(&mut app, &def, &user_2, &flambe.flambe_address, 1_u128, user_2_swap).unwrap();
 
     let flambe = qy_factory_flambe(&app, &def, FlambeFilter::ByTokenDenom(token.info.inner())).unwrap();
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &osmo).unwrap().amount_precisioned().unwrap(), "50500".into_decimal());
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &token).unwrap().amount_precisioned().unwrap(), "664451.827247".into_decimal());
 
     assert_eq!(flambe.status, FlambeStatus::PENDING);
     
     let random = app.generate_addr("random");
 
     run_end_flambe(&mut app, &def, &random, &flambe.flambe_address, None).unwrap_err_contains("Unauthorized");
-    
     run_end_flambe(&mut app, &def, &def.owner, &flambe.flambe_address, None).unwrap();
+
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &osmo).unwrap().amount_precisioned().unwrap(), Decimal::zero());
+    assert_eq!(app.qy_balance(&flambe.flambe_address, &token).unwrap().amount_precisioned().unwrap(), Decimal::zero());
+
+    // Current price was (50_500 + 100_000) / 664_451.827247 = 0.2265024
+    // The token amount to deploy is 50_500 * 664_451.827247 / (50_500 + 100_000) = 222_955,59651
+    // Burend amount 664_451.827247 - 222_955,59651 = 441_496,230729
+
+    assert_eq!(app.qy_balance(&def.burner, &token).unwrap().amount_precisioned().unwrap(), "441496.230729".into_decimal());
+    assert_eq!(app.qy_balance(&def.fee_collector, &token).unwrap().amount_precisioned().unwrap(), Decimal::zero());
 
 }

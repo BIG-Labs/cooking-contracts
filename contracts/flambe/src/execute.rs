@@ -15,9 +15,9 @@ use ratatouille_pkg::{
 use rhaki_cw_plus::{math::IntoUint, wasm::WasmMsgBuilder};
 
 use crate::{
+    error::ContractError,
     functions::{compute_swap, get_pair_amount},
-    state::{CONFIG, REPLY_ID_POOL_CREATION},
-    ContractError,
+    state::{ReplyIds, CONFIG},
 };
 
 pub fn swap(
@@ -129,14 +129,12 @@ pub fn deploy(
         spread_factor: spread_factor.to_string(),
     };
 
-    Ok(
-        Response::new()
-            .add_messages(msg_swap_fee)
-            .add_submessage(SubMsg::reply_on_success(
-                msg_create_pool,
-                REPLY_ID_POOL_CREATION,
-            )),
-    )
+    Ok(Response::new()
+        .add_messages(msg_swap_fee)
+        .add_submessage(SubMsg::reply_on_success(
+            msg_create_pool,
+            ReplyIds::PoolCreation.repr(),
+        )))
 }
 
 pub fn check_to_pending(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
