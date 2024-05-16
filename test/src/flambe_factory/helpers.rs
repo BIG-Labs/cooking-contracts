@@ -137,11 +137,6 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
     })
     .unwrap();
 
-    MockGamm::use_db(app.storage_mut(), |db, _| {
-        println!("{db:?}");
-    })
-    .unwrap();
-
     let factory_code_id = app.store_code(create_code(
         flambe_factory::contract::instantiate,
         flambe_factory::contract::execute,
@@ -187,8 +182,6 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
             Some(def.owner.to_string()),
         )
         .unwrap();
-
-    println!("Factory address: {}", factory_address);
 
     def.factory_address = Some(factory_address.clone());
 

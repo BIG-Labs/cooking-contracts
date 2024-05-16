@@ -1,23 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult,
-    SubMsgResult, WasmMsg,
-};
-use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
-use osmosis_std::types::osmosis::concentratedliquidity::poolmodel::concentrated::v1beta1::MsgCreateConcentratedPoolResponse;
-use osmosis_std::types::osmosis::concentratedliquidity::v1beta1::MsgCreatePosition;
-use prost::Message;
-use ratatouille_pkg::flambe_factory::msgs::ExecuteMsg as FactoryExecuteMsg;
+use cosmwasm_std::{Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult};
+
 use rhaki_cw_plus::traits::IntoBinaryResult;
-use rhaki_cw_plus::wasm::WasmMsgBuilder;
 
 use crate::error::ContractError;
 use crate::execute::{check_to_pending, deploy, swap};
 
-use crate::functions::{get_main_amount, get_pair_amount};
 use crate::query::{qy_config, qy_info, qy_simulate};
-use crate::state::{CONFIG, REPLY_ID_POOL_CREATION};
+use crate::reply::{reply_pool_creation, reply_position_creation};
+use crate::state::{ReplyIds, CONFIG};
 use ratatouille_pkg::flambe::definitions::{Config, FlambeStatus};
 use ratatouille_pkg::flambe::msgs::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -82,70 +74,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
-    match reply.id {
-        REPLY_ID_POOL_CREATION => {
-            let config = CONFIG.load(deps.storage)?;
-
-            let data = if let SubMsgResult::Ok(result) = reply.result {
-                result.data
-            } else {
-                return Err(StdError::generic_err("Unexpected error on reply").into());
-            };
-
-            let pool_id = MsgCreateConcentratedPoolResponse::decode(
-                data.ok_or(StdError::generic_err("Unexpected empty reply data"))?
-                    .as_slice(),
-            )
-            .map_err(|err| {
-                StdError::generic_err(format!(
-                    "reply data in not MsgCreateConcentratedPoolResponse: {}",
-                    err
-                ))
-            })?
-            .pool_id;
-
-            let paired_balance = get_pair_amount(deps.as_ref(), &env, &config)?;
-
-            let main_balance = get_main_amount(deps.as_ref(), &env, &config)?;
-
-            let price = Decimal::from_ratio(paired_balance + config.virtual_reserve, main_balance);
-            let deploy_balance = paired_balance * (Decimal::one() / price);
-
-            let create_position_msg = MsgCreatePosition {
-                pool_id,
-                sender: env.contract.address.to_string(),
-                lower_tick: config.flambe_setting.pool_creation_info.lower_tick,
-                upper_tick: config.flambe_setting.pool_creation_info.upper_tick,
-                tokens_provided: vec![
-                    ProtoCoin {
-                        denom: config.main_denom.clone(),
-                        amount: deploy_balance.to_string(),
-                    },
-                    ProtoCoin {
-                        denom: config.flambe_setting.pair_denom.clone(),
-                        amount: paired_balance.to_string(),
-                    },
-                ],
-                token_min_amount0: "1".to_string(),
-                token_min_amount1: "1".to_string(),
-            };
-
-            let msg_update_status = WasmMsg::build_execute(
-                &config.factory,
-                FactoryExecuteMsg::UpdateFlambeStatus {
-                    status: FlambeStatus::CLOSED,
-                },
-                vec![],
-            )?;
-
-            Ok(Response::new()
-                .add_message(create_position_msg)
-                .add_message(msg_update_status))
-        }
-        _ => Err(ContractError::Std(StdError::generic_err(format!(
-            "Invalid reply id: {}",
-            reply.id
-        )))),
+    match ReplyIds::from_repr(reply.id).ok_or(ContractError::InvalidReplyId(reply.id))? {
+        ReplyIds::PoolCreation => reply_pool_creation(deps, env, reply),
+        ReplyIds::PositionCreation => reply_position_creation(deps, env, reply),
     }
 }
 

@@ -32,47 +32,50 @@ pub fn compute_swap(
     let balance_main = get_main_amount(deps, env, config)?;
     let balance_pair = get_pair_amount_with_reserve(deps, env, config)?;
 
-    let (ask_qta, mut offer_qta, ask_denom, offer_denom, is_buy): (
-        Uint256,
-        Uint256,
-        String,
-        String,
-        bool,
-    ) = if offer.denom == config.main_denom {
-        (
-            balance_pair.into(),
-            balance_main.into(),
-            config.flambe_setting.pair_denom.clone(),
-            config.main_denom.clone(),
-            false,
-        )
-    } else if offer.denom == config.flambe_setting.pair_denom {
-        (
-            balance_main.into(),
-            balance_pair.into(),
-            config.main_denom.clone(),
-            config.flambe_setting.pair_denom.clone(),
-            true,
-        )
-    } else {
-        return Err(StdError::generic_err(format!(
-            "Invalid denom: {}",
-            offer.denom
-        )));
-    };
+    let (ask_qta, mut offer_qta, ask_denom, is_buy): (Uint256, Uint256, String, bool) =
+        if offer.denom == config.main_denom {
+            (
+                balance_pair.into(),
+                balance_main.into(),
+                config.flambe_setting.pair_denom.clone(),
+                false,
+            )
+        } else if offer.denom == config.flambe_setting.pair_denom {
+            (
+                balance_main.into(),
+                balance_pair.into(),
+                config.main_denom.clone(),
+                true,
+            )
+        } else {
+            return Err(StdError::generic_err(format!(
+                "Invalid denom: {}",
+                offer.denom
+            )));
+        };
 
     // Deduct from offer_qta the offer.amount because tokens are alredy on the contract
     if !is_simulation {
         offer_qta -= Into::<Uint256>::into(offer.amount);
     }
 
-    let swap_fee = offer.amount * config.swap_fee;
+    let mut swap_fee: Uint128 = Uint128::zero();
 
-    let offer_amount: Uint256 = (offer.amount - swap_fee).into();
+    let offer_amount: Uint256 = if is_buy {
+        swap_fee = offer.amount * config.swap_fee;
+        (offer.amount - swap_fee).into()
+    } else {
+        offer.amount.into()
+    };
 
-    let return_amount: Uint256 = (Decimal256::from_ratio(ask_qta, 1u8)
+    let mut return_amount: Uint256 = (Decimal256::from_ratio(ask_qta, 1u8)
         - Decimal256::from_ratio(offer_qta * ask_qta, offer_qta + offer_amount))
         * Uint256::from(1u8);
+
+    if !is_buy {
+        swap_fee = TryInto::<Uint128>::try_into(return_amount)? * config.swap_fee;
+        return_amount -= Into::<Uint256>::into(swap_fee);
+    };
 
     let price_impact = if is_buy {
         let price_pre: Decimal = Decimal256::from_ratio(offer_qta, ask_qta)
@@ -102,7 +105,7 @@ pub fn compute_swap(
 
     Ok(SwapResponse {
         return_amount: Coin::new(return_amount.u128(), ask_denom),
-        swap_fee: Coin::new(swap_fee.u128(), offer_denom),
+        swap_fee: Coin::new(swap_fee.u128(), config.flambe_setting.pair_denom.clone()),
         price_impact,
     })
 }

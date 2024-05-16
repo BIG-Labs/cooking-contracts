@@ -26,4 +26,7 @@ pub enum ContractError {
 
     #[error("Invalid Fee")]
     InvalidFee {},
+
+    #[error("Invalid ReplyId:{0}")]
+    InvalidReplyId(u64),
 }
