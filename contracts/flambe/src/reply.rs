@@ -6,7 +6,7 @@ use osmosis_std::types::{
     cosmos::base::v1beta1::Coin as ProtoCoin,
     osmosis::concentratedliquidity::{
         poolmodel::concentrated::v1beta1::MsgCreateConcentratedPoolResponse,
-        v1beta1::{MsgCreatePosition, MsgCreatePositionResponse, MsgTransferPositions},
+        v1beta1::MsgCreatePosition,
     },
 };
 use prost::Message;
@@ -96,34 +96,37 @@ pub fn reply_position_creation(
     env: Env,
     reply: Reply,
 ) -> Result<Response, ContractError> {
-    let data = if let SubMsgResult::Ok(result) = reply.result {
+    let _data = if let SubMsgResult::Ok(result) = reply.result {
         result.data
     } else {
         return Err(StdError::generic_err("Unexpected error on reply").into());
     };
 
-    let position_id = MsgCreatePositionResponse::decode(
-        data.ok_or(StdError::generic_err("Unexpected empty reply data"))?
-            .as_slice(),
-    )
-    .map_err(|err| {
-        StdError::generic_err(format!(
-            "reply data in not MsgCreateConcentratedPoolResponse: {}",
-            err
-        ))
-    })?
-    .position_id;
-
     let config = CONFIG.load(deps.storage)?;
 
-    // Migrate position to burn address
-    let msg_migrate_position = MsgTransferPositions {
-        position_ids: vec![position_id],
-        sender: env.contract.address.to_string(),
-        new_owner: config.burner_addr.to_string(),
-    };
+    // --- Migrate position to burn address ---
+    // This is not working because is not possible to transfer a position if it's the only one
+    // This will left commented for now
 
-    // Brun remaining tokens
+    // let position_id = MsgCreatePositionResponse::decode(
+    //     data.ok_or(StdError::generic_err("Unexpected empty reply data"))?
+    //         .as_slice(),
+    // )
+    // .map_err(|err| {
+    //     StdError::generic_err(format!(
+    //         "reply data in not MsgCreateConcentratedPoolResponse: {}",
+    //         err
+    //     ))
+    // })?
+    // .position_id;
+
+    // let msg_migrate_position = MsgTransferPositions {
+    //     position_ids: vec![position_id],
+    //     sender: env.contract.address.to_string(),
+    //     new_owner: config.burner_addr.to_string(),
+    // };
+
+    // --- Brun remaining tokens ---
     let burn_amount = get_main_amount(deps.as_ref(), &env, &config)?;
 
     let burn_msg = if burn_amount > Uint128::zero() {
@@ -137,6 +140,6 @@ pub fn reply_position_creation(
     };
 
     Ok(Response::new()
-        .add_message(msg_migrate_position)
+        // .add_message(msg_migrate_position)
         .add_messages(burn_msg))
 }
