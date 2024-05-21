@@ -131,11 +131,18 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
         mock_dojo::query,
     ));
 
+    let cw20_code_id = app.store_code(create_code(
+        cw20_base::contract::instantiate,
+        cw20_base::contract::execute,
+        cw20_base::contract::query,
+    ));
     let dojoswap_factory = app
         .instantiate_contract(
             dojoswap_code_id,
             def.owner.clone(),
-            &mock_dojo::InstantiateMsg {},
+            &mock_dojo::InstantiateMsg {
+                code_id_cw20: cw20_code_id,
+            },
             &[],
             "DojoSwap Factory",
             Some(def.owner.to_string()),

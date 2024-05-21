@@ -32,8 +32,6 @@ pub fn instantiate(
             .pow((msg.flambe_setting.pair_decimals - TOKEN_DECIMALS) as u32)
             .into_uint128();
 
-    println!("virtual_reserve: {}", virtual_reserve);
-
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         factory: deps.api.addr_validate(&msg.factory)?,

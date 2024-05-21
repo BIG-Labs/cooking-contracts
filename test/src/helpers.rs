@@ -1,4 +1,4 @@
-use cosmwasm_std::{testing::MockStorage, Addr, StdError, StdResult, Timestamp};
+use cosmwasm_std::{testing::MockStorage, Addr, StdError, StdResult};
 use rhaki_cw_plus::{
     multi_test::{
         helper::{
@@ -6,7 +6,7 @@ use rhaki_cw_plus::{
                 addons::MockApiBech32, App, AppResponse, BankKeeper, DistributionKeeper,
                 GovFailingModule, IbcFailingModule, StakeKeeper,
             },
-            Bech32App, DefaultWasmKeeper, FailingCustom,
+            DefaultWasmKeeper, FailingCustom,
         },
         multi_stargate_module::MultiStargateModule,
     },
@@ -45,14 +45,4 @@ pub fn _get_addr_from_response_and_consume(
     }
 
     Err(StdError::generic_err("No instantiate event found"))
-}
-
-pub trait AppExt2 {
-    fn set_block_time(&mut self, time: u64);
-}
-
-impl AppExt2 for Bech32App {
-    fn set_block_time(&mut self, time: u64) {
-        self.update_block(|block_info| block_info.time = Timestamp::from_seconds(time))
-    }
 }

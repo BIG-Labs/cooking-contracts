@@ -16,3 +16,5 @@ anyhow = "1.0.82"
 strum = "0.21.0"
 injective-std = { workspace = true }
 prost = "0.12.4"
+cw20 = "1.1.2"
+cw20-base = "1.1.2"

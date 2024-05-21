@@ -2,7 +2,7 @@ use cosmwasm_std::{
     Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 
-use dojoswap::asset::{Asset, AssetInfo, PairInfo};
+use dojoswap::asset::{Asset as DojoAsset, AssetInfo as DojoAssetInfo, PairInfo};
 use ratatouille_pkg::{
     flambe::{
         definitions::{FlambeStatus, SwapResponse},
@@ -10,7 +10,11 @@ use ratatouille_pkg::{
     },
     flambe_factory::{self, msgs::ExecuteMsg as FactoryExecuteMsg},
 };
-use rhaki_cw_plus::wasm::WasmMsgBuilder;
+use rhaki_cw_plus::{
+    cw_asset::{Asset, AssetInfoBase},
+    traits::{IntoAddr, IntoStdResult},
+    wasm::WasmMsgBuilder,
+};
 
 use crate::{
     error::ContractError,
@@ -121,14 +125,14 @@ pub fn deploy(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contrac
         &dojoswap_factory,
         dojoswap::factory::ExecuteMsg::CreatePair {
             assets: [
-                Asset {
-                    info: AssetInfo::NativeToken {
+                DojoAsset {
+                    info: DojoAssetInfo::NativeToken {
                         denom: config.main_denom.clone(),
                     },
                     amount: deploy_amount,
                 },
-                Asset {
-                    info: AssetInfo::NativeToken {
+                DojoAsset {
+                    info: DojoAssetInfo::NativeToken {
                         denom: config.flambe_setting.pair_denom.clone(),
                     },
                     amount: paired_balance,
@@ -212,10 +216,10 @@ pub fn burn_lps(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contr
             &dojoswap_factory,
             &dojoswap::factory::QueryMsg::Pair {
                 asset_infos: [
-                    AssetInfo::NativeToken {
+                    DojoAssetInfo::NativeToken {
                         denom: config.main_denom.clone(),
                     },
-                    AssetInfo::NativeToken {
+                    DojoAssetInfo::NativeToken {
                         denom: config.flambe_setting.pair_denom.clone(),
                     },
                 ],
@@ -223,14 +227,15 @@ pub fn burn_lps(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contr
         )?
         .liquidity_token;
 
-    let balance_lp = deps
-        .querier
-        .query_balance(&env.contract.address, lp_token_addr)?;
+    let lp_token = AssetInfoBase::cw20(lp_token_addr.into_addr(deps.api)?);
 
-    let msg_burn = BankMsg::Send {
-        to_address: config.burner_addr.to_string(),
-        amount: vec![balance_lp],
-    };
+    let balance_lp = lp_token
+        .query_balance(&deps.querier, env.contract.address)
+        .into_std_result()?;
+
+    let msg_burn = Asset::new(lp_token, balance_lp)
+        .transfer_msg(config.burner_addr)
+        .into_std_result()?;
 
     Ok(Response::new().add_message(msg_burn))
 }
