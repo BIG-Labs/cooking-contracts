@@ -50,9 +50,7 @@ mod test {
     use cw_storage_plus::Bound;
     use ratatouille_pkg::{
         flambe::definitions::FlambeStatus,
-        flambe_factory::definitions::{
-            FlambeBaseInfo, FlambeSetting, PoolCreationInfo, ProtocolTokenInfo,
-        },
+        flambe_factory::definitions::{FlambeBaseInfo, FlambeSetting, ProtocolTokenInfo},
     };
     use rhaki_cw_plus::{
         math::IntoDecimal,
@@ -94,12 +92,7 @@ mod test {
             threshold: 100_000_u128.into(),
             initial_price: "0.1".into_decimal(),
             initial_supply: 1_000_000_u128.into(),
-            pool_creation_info: PoolCreationInfo {
-                tick_spacing: 100,
-                spread_factor: "0.01".into_decimal(),
-                lower_tick: -100,
-                upper_tick: 100,
-            },
+            pair_decimals: 6,
         };
 
         let token_1 = create_token(1, &fs, "0.1", 100_000);

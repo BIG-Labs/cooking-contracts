@@ -4,19 +4,19 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use ratatouille_pkg::flambe_factory::{
     definitions::{
         Config as FactoryConfig, CreateFactoryInput, FlambeFullInfo, FlambeSetting,
-        PoolCreationInfo, ProtocolTokensInfoCreation,
+        ProtocolTokensInfoCreation,
     },
-    msgs::{EndFlambeMsg, EndFlambeSwapMsg, FlambeFilter, FlambesFilter, UpdateConfigMsg},
+    msgs::{EndFlambeMsg, FlambeFilter, FlambesFilter, UpdateConfigMsg},
 };
 use rhaki_cw_plus::{
     asset::{AssetInfoPrecisioned, AssetPrecisioned},
     cw_asset::AssetInfo,
-    math::IntoDecimal,
+    math::{IntoDecimal, IntoUint},
     multi_test::{
-        custom_modules::token_factory::{TokenFactoryFee, TokenFactoryModule},
+        custom_modules::injective::token_factory::{TokenFactoryFee, TokenFactoryModule},
         helper::{
             anyhow::Error as AnyError,
-            build_bech32_app, create_code, create_code_with_reply,
+            build_bech32_app, create_code,
             cw_multi_test::{
                 addons::MockAddressGenerator, no_init, AppResponse, Executor, WasmKeeper,
             },
@@ -24,13 +24,15 @@ use rhaki_cw_plus::{
         },
         multi_stargate_module::{multi_stargate_app_builder, ModuleDb},
     },
+    traits::Unclone,
 };
 
-use crate::{helpers::OsmosisApp, mock_gamm::MockGamm};
+use crate::{helpers::OsmosisApp, mock_dojo};
 
 pub struct Def {
     pub owner: Addr,
     pub burner: Addr,
+    pub dojoswap_factory: Option<Addr>,
     pub swap_fee: Decimal,
     pub factory_minting_fee: AssetPrecisioned,
     pub fee_collector: Addr,
@@ -44,7 +46,7 @@ pub struct Def {
     pub cook_token: ProtocolTokensInfoCreation,
 }
 
-pub const CHAIN_PREFIX: &str = "osmo";
+pub const CHAIN_PREFIX: &str = "inj";
 
 pub type AppResult<T> = anyhow::Result<T>;
 
@@ -56,29 +58,24 @@ impl Default for Def {
             burner: app.generate_addr("burner"),
             swap_fee: "0.01".into_decimal(),
             factory_minting_fee: AssetPrecisioned::new_super(
-                AssetInfo::native("uosmo"),
-                6,
+                AssetInfo::native("inj"),
+                18,
                 100_u128.into_decimal(),
             ),
             fee_collector: app.generate_addr("fee_collector"),
 
             flambe_code_id: None,
             flambe_fee_creaton: Some(AssetPrecisioned::new_super(
-                AssetInfo::native("uosmo"),
-                6,
+                AssetInfo::native("inj"),
+                18,
                 1_u128.into_decimal(),
             )),
             flambe_settings: vec![FlambeSetting {
                 initial_price: "0.1".into_decimal(),
-                pair_denom: "uosmo".to_string(),
-                threshold: Uint128::new(50_000_000_000),
+                pair_denom: "inj".to_string(),
+                threshold: Uint128::new(50_000_000_000) * 10_u128.pow(18 - 6).into_uint128(),
                 initial_supply: Uint128::from(1_000_000_000_000_u128),
-                pool_creation_info: PoolCreationInfo {
-                    tick_spacing: 100,
-                    spread_factor: "0.001".into_decimal(),
-                    lower_tick: -108000000,
-                    upper_tick: 342000000,
-                },
+                pair_decimals: 18,
             }],
             factory_address: None,
             cookie_ratio: Decimal::from_ratio(10u128, 1u128),
@@ -100,6 +97,7 @@ impl Default for Def {
                 uri: "https://cook.com".to_string(),
                 uri_hash: "".to_string(),
             },
+            dojoswap_factory: None,
         }
     }
 }
@@ -112,15 +110,10 @@ pub struct ParsedSwapResponse {
 }
 
 pub fn startup(def: &mut Def) -> OsmosisApp {
-    let mut app = multi_stargate_app_builder(
-        CHAIN_PREFIX,
-        vec![
-            Box::<TokenFactoryModule>::default(),
-            Box::<MockGamm>::default(),
-        ],
-    )
-    .with_wasm(WasmKeeper::default().with_address_generator(MockAddressGenerator))
-    .build(no_init);
+    let mut app =
+        multi_stargate_app_builder(CHAIN_PREFIX, vec![Box::<TokenFactoryModule>::default()])
+            .with_wasm(WasmKeeper::default().with_address_generator(MockAddressGenerator))
+            .build(no_init);
 
     let factory_fee_collector = app.generate_addr("factory_fee_collector");
 
@@ -132,10 +125,22 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
     })
     .unwrap();
 
-    MockGamm::use_db(app.storage_mut(), |db, _| {
-        db.param.authorized_quote_denoms = vec!["uosmo".to_string()];
-    })
-    .unwrap();
+    let dojoswap_code_id = app.store_code(create_code(
+        mock_dojo::instantiate,
+        mock_dojo::execute,
+        mock_dojo::query,
+    ));
+
+    let dojoswap_factory = app
+        .instantiate_contract(
+            dojoswap_code_id,
+            def.owner.clone(),
+            &mock_dojo::InstantiateMsg {},
+            &[],
+            "DojoSwap Factory",
+            Some(def.owner.to_string()),
+        )
+        .unwrap();
 
     let factory_code_id = app.store_code(create_code(
         flambe_factory::contract::instantiate,
@@ -143,17 +148,17 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
         flambe_factory::contract::query,
     ));
 
-    let flambe_code_id = app.store_code(create_code_with_reply(
+    let flambe_code_id = app.store_code(create_code(
         flambe::contract::instantiate,
         flambe::contract::execute,
         flambe::contract::query,
-        flambe::contract::reply,
     ));
 
     app.mint(def.owner.clone(), def.factory_minting_fee.clone());
     app.mint(def.owner.clone(), def.factory_minting_fee.clone());
 
     def.flambe_code_id = Some(flambe_code_id);
+    def.dojoswap_factory = Some(dojoswap_factory);
 
     let factory_address = app
         .instantiate_contract(
@@ -174,6 +179,7 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
                 cookie_owner_reward: def.cookie_owner_reward,
                 cookie_token: def.cookie_token.clone(),
                 cook_token: def.cook_token.clone(),
+                dojoswap_factory: def.dojoswap_factory.unclone().to_string(),
             },
             &[(def.factory_minting_fee.clone() * "2".into_decimal())
                 .try_into()
@@ -195,6 +201,14 @@ pub fn parse_swap_output_from_response(response: AppResponse) -> ParsedSwapRespo
     let mut return_amount = None;
     let mut fee_denom = None;
     let mut fee_amount = None;
+
+    let precision = |denom: Option<String>| {
+        if denom.unwrap() == "inj" {
+            18_u8
+        } else {
+            6_u8
+        }
+    };
 
     for i in response.events {
         for attribute in i.attributes {
@@ -224,15 +238,15 @@ pub fn parse_swap_output_from_response(response: AppResponse) -> ParsedSwapRespo
 
     ParsedSwapResponse {
         input: AssetPrecisioned::new(
-            AssetInfoPrecisioned::native(input_denom.unwrap(), 6),
+            AssetInfoPrecisioned::native(input_denom.unclone(), precision(input_denom)),
             input_amount.unwrap(),
         ),
         output: AssetPrecisioned::new(
-            AssetInfoPrecisioned::native(return_denom.unwrap(), 6),
+            AssetInfoPrecisioned::native(return_denom.unclone(), precision(return_denom)),
             return_amount.unwrap(),
         ),
         fee: AssetPrecisioned::new(
-            AssetInfoPrecisioned::native(fee_denom.unwrap(), 6),
+            AssetInfoPrecisioned::native(fee_denom.unclone(), precision(fee_denom)),
             fee_amount.unwrap(),
         ),
     }
@@ -328,14 +342,12 @@ pub fn run_end_flambe(
     def: &Def,
     sender: &Addr,
     flambe: &Addr,
-    swap_msg: Option<EndFlambeSwapMsg>,
 ) -> Result<AppResponse, AnyError> {
     app.execute_contract(
         sender.clone(),
         def.factory_address.clone().unwrap(),
         &ratatouille_pkg::flambe_factory::msgs::ExecuteMsg::EndFlambe(EndFlambeMsg {
             flambe_address: flambe.to_string(),
-            swap_msg,
         }),
         &[],
     )

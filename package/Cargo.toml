@@ -1,15 +1,15 @@
 [package]
-name             = "ratatouille-pkg"
+name               = "ratatouille-pkg"
 
-version          = { workspace = true }
-authors          = { workspace = true }
-edition          = { workspace = true }
+version            = { workspace = true }
+authors            = { workspace = true }
+edition            = { workspace = true }
 
 [dependencies]
-cosmwasm-schema  = { workspace = true }
-cosmwasm-std     = { workspace = true }
-astroport        = { workspace = true }
-cw-storage-plus  = { workspace = true }
-schemars         = { workspace = true }
-serde            = { workspace = true }
-osmosis-std      = { workspace = true }
+cosmwasm-schema    = { workspace = true }
+cosmwasm-std       = { workspace = true }
+astroport          = { workspace = true }
+cw-storage-plus    = { workspace = true }
+schemars           = { workspace = true }
+serde              = { workspace = true }
+injective-std = { workspace = true }

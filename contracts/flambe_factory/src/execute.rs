@@ -4,23 +4,23 @@ use cosmwasm_std::{
     attr, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Uint128, WasmMsg,
 };
+use injective_std::types::injective::tokenfactory::v1beta1::{MsgChangeAdmin, MsgCreateDenom};
 use ratatouille_pkg::{
     flambe::{
         definitions::FlambeStatus,
         msgs::{ExecuteMsg, InstantiateMsg as FlambeInstantiateMsg},
     },
     flambe_factory::{
-        definitions::{CreateFactoryInput, FlambeBaseInfo, FlambeFullInfo},
+        definitions::{CreateFactoryInput, FlambeBaseInfo, FlambeFullInfo, TOKEN_DECIMALS},
         msgs::{EndFlambeMsg, FlambeFilter, UpdateConfigMsg},
     },
 };
 use rhaki_cw_plus::{
+    asset::only_one_coin,
     storage::multi_index::{get_unique_value, unique_map_value},
     traits::{IntoAddr, IntoBinary},
     wasm::{build_instantiate_2, WasmMsgBuilder},
 };
-
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::{MsgChangeAdmin, MsgCreateDenom};
 
 use crate::{
     helper::{create_mint_msg_to_self, create_set_denom_metadata, derive_denom_from_subdenom},
@@ -91,7 +91,7 @@ pub fn update_config(
         return Err(ContractError::InvalidEmptyUpdate);
     }
 
-    config.validate(deps.querier)?;
+    config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -119,6 +119,8 @@ pub fn create_token_factory(
     let msg_create_denom = MsgCreateDenom {
         sender: env.contract.address.to_string(),
         subdenom: subdenom.clone(),
+        name: factory_input.name.clone(),
+        symbol: factory_input.symbol.clone(),
     };
 
     let flambè_token = factory_input.to_protocol_token(
@@ -132,7 +134,8 @@ pub fn create_token_factory(
         flambe_setting.initial_supply,
     );
 
-    let msg_set_metadata = create_set_denom_metadata(&env.contract.address, &flambè_token, 6);
+    let msg_set_metadata =
+        create_set_denom_metadata(&env.contract.address, &flambè_token, TOKEN_DECIMALS);
 
     let msg_change_admin = MsgChangeAdmin {
         sender: env.contract.address.to_string(),
@@ -261,9 +264,7 @@ pub fn request_dump(
         vec![received],
     )?;
 
-    Ok(
-        Response::new().add_message(dump_msg),
-    )
+    Ok(Response::new().add_message(dump_msg))
 }
 
 pub fn update_flambe_status(
@@ -330,7 +331,7 @@ pub fn end_flambe(
 
     let end_flambe_msg = WasmMsg::build_execute(
         flambe.flambe_address,
-        ratatouille_pkg::flambe::msgs::ExecuteMsg::Deploy(msg),
+        ratatouille_pkg::flambe::msgs::ExecuteMsg::Deploy,
         vec![],
     )?;
 
@@ -354,4 +355,32 @@ pub fn update_flambe_liquidity(deps: DepsMut, sender: Addr) -> Result<Response, 
     })?;
 
     Ok(Response::new().add_attribute("action", "update_flmabe_liquidity"))
+}
+
+pub fn register_denom_on_dojo(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    let flambe = qy_flambe(
+        deps.as_ref(),
+        FlambeFilter::ByFlambeAddr(info.sender.to_string()),
+    )?;
+
+    let received = only_one_coin(&info.funds, Some(flambe.token.denom.clone()))?;
+
+    if received.amount != Uint128::one() {
+        return Err(ContractError::InvalidDenomRegistrationAmount {
+            requested: Uint128::one(),
+        });
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let msg_register = WasmMsg::build_execute(
+        &config.dojoswap_factory,
+        dojoswap::factory::ExecuteMsg::AddNativeTokenDecimals {
+            denom: flambe.token.denom.clone(),
+            decimals: TOKEN_DECIMALS,
+        },
+        vec![Coin::new(1_u128, flambe.token.denom)],
+    )?;
+
+    Ok(Response::new().add_message(msg_register))
 }

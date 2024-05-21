@@ -1,20 +1,20 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use injective_std::types::injective::tokenfactory::v1beta1::{MsgChangeAdmin, MsgCreateDenom};
 use rhaki_cw_plus::asset::only_one_coin;
 
 use crate::error::ContractError;
 use crate::execute::{
-    create_token_factory, end_flambe, request_dump, request_pump, update_config,
-    update_flambe_liquidity, update_flambe_status,
+    create_token_factory, end_flambe, register_denom_on_dojo, request_dump, request_pump,
+    update_config, update_flambe_liquidity, update_flambe_status,
 };
 use crate::helper::{
     create_mint_msg_to_receiver, create_set_denom_metadata, derive_denom_from_subdenom,
 };
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::{MsgChangeAdmin, MsgCreateDenom};
 
 use ratatouille_pkg::flambe_factory::definitions::Config;
-use rhaki_cw_plus::traits::IntoBinaryResult;
+use rhaki_cw_plus::traits::{IntoAddr, IntoBinaryResult};
 
 use crate::query::{qy_config, qy_flambe, qy_flambes};
 use crate::state::CONFIG;
@@ -33,11 +33,15 @@ pub fn instantiate(
     let create_cookie_msg = MsgCreateDenom {
         sender: env.contract.address.to_string(),
         subdenom: msg.cookie_token.symbol.to_string(),
+        name: msg.cookie_token.name.to_string(),
+        symbol: msg.cookie_token.symbol.to_string(),
     };
 
     let create_cook_msg = MsgCreateDenom {
         sender: env.contract.address.to_string(),
         subdenom: msg.cook_token.symbol.to_string(),
+        name: msg.cook_token.name.to_string(),
+        symbol: msg.cook_token.symbol.to_string(),
     };
 
     let cook_token = msg.cook_token.clone().finalize(derive_denom_from_subdenom(
@@ -95,21 +99,22 @@ pub fn instantiate(
         cookie_token,
         cook_token,
         counter_flambe: 0,
+        dojoswap_factory: msg.dojoswap_factory.into_addr(deps.api)?,
     };
 
-    config.validate(deps.querier)?;
+    config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         // Cook
         .add_message(create_cook_msg)
-        .add_message(mint_cook_msg)
+        .add_messages(mint_cook_msg)
         .add_message(set_metadata_cook_msg)
         .add_message(msg_cook_change_admin)
         // Cookie
         .add_message(create_cookie_msg)
-        .add_message(mint_cookie_msg)
+        .add_messages(mint_cookie_msg)
         .add_message(set_metadata_cookie_msg)
         .add_message(msg_cookie_change_admin))
 }
@@ -149,6 +154,7 @@ pub fn execute(
             }
         }
         ExecuteMsg::EndFlambe(msg) => end_flambe(deps, env, info, msg),
+        ExecuteMsg::RegisterDenomOnDojo => register_denom_on_dojo(deps, info),
     }
 }
 

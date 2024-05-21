@@ -1,0 +1,35 @@
+{
+    "chain_info": {
+        "chain_name": "injective",
+        "net": "testnet",
+        "grpc": "https://injective-testnet-grpc.polkachu.com:14390",
+        "chain_prefix": "inj",
+        "account_index": 0,
+        "coin_type": 118,
+        "gas_price": "700000000",
+        "gas_denom": "inj",
+        "gas_adjustment": "1.5"
+    },
+    "data": {
+        "code_id": {
+            "flabe": null,
+            "flambe_factory": null
+        },
+        "addresses": {
+            "factory": null
+        },
+        "variables": {
+            "burner_addr": null,
+            "cook_token": null,
+            "cookie_token": null,
+            "cookie_ratio": null,
+            "cookie_owner_reward": null,
+            "fee_collector": null,
+            "flambe_code_id": null,
+            "flambe_fee_creation": null,
+            "flambe_settings": null,
+            "owner": null,
+            "swap_fee": null
+        }
+    }
+}

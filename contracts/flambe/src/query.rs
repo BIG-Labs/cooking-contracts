@@ -1,5 +1,8 @@
-use cosmwasm_std::{Coin, Decimal, Deps, Env, StdResult, Uint128};
-use ratatouille_pkg::flambe::definitions::{Config, FlambeInfo, SwapResponse};
+use cosmwasm_std::{Addr, Coin, Decimal, Deps, Env, StdResult, Uint128};
+use ratatouille_pkg::{
+    flambe::definitions::{Config, FlambeInfo, SwapResponse},
+    flambe_factory,
+};
 
 use crate::{
     functions::{compute_swap, get_main_amount, get_pair_amount},
@@ -36,4 +39,12 @@ pub fn qy_simulate(
     let coin = Coin::new(amount.u128(), offer);
     let config = CONFIG.load(deps.storage)?;
     compute_swap(deps, &env, &config, coin, true)
+}
+
+pub fn qy_factory_config(
+    deps: Deps,
+    factory_addr: &Addr,
+) -> StdResult<flambe_factory::definitions::Config> {
+    deps.querier
+        .query_wasm_smart(factory_addr, &flambe_factory::msgs::QueryMsg::Config {})
 }

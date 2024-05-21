@@ -2,7 +2,7 @@ pub mod msgs {
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::{Decimal, Uint128};
 
-    use crate::flambe_factory::{definitions::FlambeSetting, msgs::EndFlambeMsg};
+    use crate::flambe_factory::definitions::FlambeSetting;
 
     use super::definitions::{Config, FlambeInfo};
 
@@ -24,8 +24,9 @@ pub mod msgs {
             user: String,
         },
 
-        Deploy(EndFlambeMsg),
+        Deploy,
         CheckToPending,
+        PrivateBurnLps,
     }
 
     #[cw_serde]

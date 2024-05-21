@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, StdError};
+use cosmwasm_std::{Coin, StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -26,4 +26,7 @@ pub enum ContractError {
 
     #[error("Insufficient Fee - requested {0} ")]
     InsufficientFee(Coin),
+
+    #[error("Invalid Denom Registration Amount - requested {requested}")]
+    InvalidDenomRegistrationAmount { requested: Uint128 },
 }

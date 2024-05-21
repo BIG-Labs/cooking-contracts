@@ -6,4 +6,5 @@ mod flambe_factory;
 #[cfg(test)]
 mod helpers;
 
-mod mock_gamm;
+#[cfg(test)]
+mod mock_dojo;

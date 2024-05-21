@@ -1,13 +1,11 @@
 pub mod msgs {
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::{Coin, Decimal, Uint128};
-    use osmosis_std::types::osmosis::poolmanager::v1beta1::SwapAmountOutRoute;
 
     use crate::flambe::definitions::FlambeStatus;
 
     use super::definitions::{
-        Config, CreateFactoryInput, FlambeFullInfo, FlambeSetting, PoolCreationInfo,
-        ProtocolTokensInfoCreation,
+        Config, CreateFactoryInput, FlambeFullInfo, FlambeSetting, ProtocolTokensInfoCreation,
     };
 
     #[cw_serde]
@@ -17,6 +15,7 @@ pub mod msgs {
         pub cookie_token: ProtocolTokensInfoCreation,
         pub cookie_ratio: Decimal,
         pub cookie_owner_reward: Uint128,
+        pub dojoswap_factory: String,
         pub fee_collector: String,
         pub flambe_code_id: u64,
         pub flambe_fee_creation: Option<Coin>,
@@ -42,6 +41,7 @@ pub mod msgs {
             flambe_addr: String,
             min_amount_out: Uint128,
         },
+        RegisterDenomOnDojo,
     }
 
     #[cw_serde]
@@ -80,7 +80,6 @@ pub mod msgs {
         pub flambe_code_id: Option<u64>,
         pub flambe_settings: Option<Vec<FlambeSetting>>,
         pub owner: Option<String>,
-        pub pool_creation_info: Option<PoolCreationInfo>,
         pub swap_fee: Option<Decimal>,
     }
 
@@ -114,23 +113,16 @@ pub mod msgs {
     #[cw_serde]
     pub struct EndFlambeMsg {
         pub flambe_address: String,
-        pub swap_msg: Option<EndFlambeSwapMsg>,
-    }
-
-    #[cw_serde]
-    pub struct EndFlambeSwapMsg {
-        pub routes: Vec<SwapAmountOutRoute>,
-        pub token_in_max_amount: Uint128,
-        pub token_out: Coin,
     }
 }
 
 pub mod definitions {
     use cosmwasm_schema::cw_serde;
-    use cosmwasm_std::{Addr, Coin, Decimal, QuerierWrapper, StdError, StdResult, Uint128};
-    use osmosis_std::types::osmosis::poolmanager::v1beta1::ParamsRequest;
+    use cosmwasm_std::{Addr, Coin, Decimal, StdError, StdResult, Uint128};
 
     use crate::flambe::definitions::{FlambeInfo, FlambeStatus};
+
+    pub const TOKEN_DECIMALS: u8 = 6;
 
     #[cw_serde]
     pub struct Config {
@@ -146,20 +138,14 @@ pub mod definitions {
         pub owner: Addr,
         pub swap_fee: Decimal,
         pub counter_flambe: u64,
+        pub dojoswap_factory: Addr,
     }
 
     impl Config {
-        pub fn validate(&self, querier: QuerierWrapper) -> StdResult<()> {
+        pub fn validate(&self) -> StdResult<()> {
             if self.swap_fee >= Decimal::one() {
                 return Err(StdError::generic_err("Swap fee can't be greater then 1"));
             }
-
-            let params = ParamsRequest {}.query(&querier)?;
-
-            let authorized_quote_denoms = params
-                .params
-                .map(|val| val.authorized_quote_denoms)
-                .unwrap_or_default();
 
             for setting in &self.flambe_settings {
                 if setting.initial_price == Decimal::zero() {
@@ -174,26 +160,9 @@ pub mod definitions {
                     return Err(StdError::generic_err("Threshold can't be 0"));
                 }
 
-                if !authorized_quote_denoms.contains(&setting.pair_denom) {
-                    return Err(StdError::generic_err(format!(
-                        "Pair denom {} can't be used for create ConcentratedPool",
-                        setting.pair_denom
-                    )));
-                }
-
-                if setting.pool_creation_info.spread_factor > Decimal::one() {
+                if setting.pair_decimals < 6 || setting.pair_decimals > 18 {
                     return Err(StdError::generic_err(
-                        "Spread factor can't be greater then 1",
-                    ));
-                }
-
-                if setting.pool_creation_info.tick_spacing == 0 {
-                    return Err(StdError::generic_err("Tick spacing can't be 0"));
-                }
-
-                if setting.pool_creation_info.lower_tick >= setting.pool_creation_info.upper_tick {
-                    return Err(StdError::generic_err(
-                        "Lower tick can't be equal or greater then Upper tick",
+                        "Pair decimals must be between 6 and 18",
                     ));
                 }
             }
@@ -205,10 +174,10 @@ pub mod definitions {
     #[cw_serde]
     pub struct FlambeSetting {
         pub pair_denom: String,
+        pub pair_decimals: u8,
         pub threshold: Uint128,
         pub initial_price: Decimal,
         pub initial_supply: Uint128,
-        pub pool_creation_info: PoolCreationInfo,
     }
 
     #[cw_serde]
@@ -323,13 +292,5 @@ pub mod definitions {
         pub symbol: String,
         pub uri: String,
         pub uri_hash: String,
-    }
-
-    #[cw_serde]
-    pub struct PoolCreationInfo {
-        pub tick_spacing: u64,
-        pub spread_factor: Decimal,
-        pub lower_tick: i64,
-        pub upper_tick: i64,
     }
 }

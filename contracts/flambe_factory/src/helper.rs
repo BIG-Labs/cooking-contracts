@@ -1,14 +1,11 @@
+use injective_std::types::cosmos::bank::v1beta1::{DenomUnit, Metadata};
+use injective_std::types::injective::tokenfactory::v1beta1::MsgMint;
+use injective_std::types::{
+    cosmos::base::v1beta1::Coin as ProtoCoin, injective::tokenfactory::v1beta1::MsgSetDenomMetadata,
+};
 use ratatouille_pkg::flambe_factory::definitions::ProtocolTokenInfo;
 
-use cosmwasm_std::{CosmosMsg, Uint128};
-
-use osmosis_std::types::{
-    cosmos::{
-        bank::v1beta1::{DenomUnit, Metadata},
-        base::v1beta1::Coin as ProtoCoin,
-    },
-    osmosis::tokenfactory::v1beta1::{MsgMint, MsgSetDenomMetadata},
-};
+use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Uint128};
 
 pub fn derive_denom_from_subdenom(creator: impl Into<String>, subdenom: &str) -> String {
     format!("factory/{}/{}", creator.into(), subdenom)
@@ -21,7 +18,6 @@ pub fn create_mint_msg_to_self(
 ) -> CosmosMsg {
     MsgMint {
         sender: minter.clone().into(),
-        mint_to_address: minter.into(),
         amount: Some(ProtoCoin {
             denom: denom.into(),
             amount: amount.to_string(),
@@ -33,18 +29,24 @@ pub fn create_mint_msg_to_self(
 pub fn create_mint_msg_to_receiver(
     minter: impl Into<String> + Clone,
     receiver: impl Into<String> + Clone,
-    denom: impl Into<String>,
+    denom: impl Into<String> + Clone,
     amount: Uint128,
-) -> CosmosMsg {
-    MsgMint {
-        sender: minter.clone().into(),
-        mint_to_address: receiver.into(),
-        amount: Some(ProtoCoin {
-            denom: denom.into(),
-            amount: amount.to_string(),
-        }),
-    }
-    .into()
+) -> Vec<CosmosMsg> {
+    vec![
+        MsgMint {
+            sender: minter.clone().into(),
+            amount: Some(ProtoCoin {
+                denom: denom.clone().into(),
+                amount: amount.to_string(),
+            }),
+        }
+        .into(),
+        BankMsg::Send {
+            to_address: receiver.into(),
+            amount: vec![Coin::new(amount.u128(), denom.into())],
+        }
+        .into(),
+    ]
 }
 
 pub fn create_set_denom_metadata(

@@ -12,15 +12,17 @@ cosmwasm-schema     = "1.5.0"
 cosmwasm-std        = "1.5.0"
 cw-multi-test       = "0.20.0"
 cw-storage-plus     = "1.2.0"
-enum-repr           = "0.2.6"
+dojoswap            = "2.9.0"
 flambe              = { path = "./contracts/flambe", version = "0.1.0" }
 flambe-factory      = { path = "./contracts/flambe_factory", version = "0.1.0" }
-osmosis-std         = "0.22.0"
+# injective-std       = "1.12.10-testnet"
+injective-std       = { git = "https://github.com/Rhaki/cw-injective", package = "injective-std" }
 prost               = "0.12.4"
 ratatouille         = { path = "./contracts/ratatouille", version = "0.1.0" }
 ratatouille-factory = { path = "./contracts/ratatouille_factory", version = "0.1.0" }
 ratatouille-pkg     = { path = "./package", version = "0.1.0" }
-rhaki-cw-plus       = "2.0.5"
+# rhaki-cw-plus       = "2.0.5"
+rhaki-cw-plus       = { git = "https://github.com/Rhaki/rhaki-cw-plus.git", package = "rhaki-cw-plus" }
 schemars            = "0.8.16"
 serde               = { version = "1.0.194", default-features = false, features = ["derive"] }
 thiserror           = "1.0.56"

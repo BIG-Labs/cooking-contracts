@@ -1,23 +1,22 @@
 use cosmwasm_std::{
-    Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, Uint128, WasmMsg,
+    Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
-use osmosis_std::types::osmosis::{
-    concentratedliquidity::poolmodel::concentrated::v1beta1::MsgCreateConcentratedPool,
-    poolmanager::v1beta1::MsgSwapExactAmountOut,
-};
+
+use dojoswap::asset::{Asset, AssetInfo, PairInfo};
 use ratatouille_pkg::{
     flambe::{
         definitions::{FlambeStatus, SwapResponse},
         msgs::ExecuteMsg,
     },
-    flambe_factory::msgs::{EndFlambeMsg, ExecuteMsg as FactoryExecuteMsg},
+    flambe_factory::{self, msgs::ExecuteMsg as FactoryExecuteMsg},
 };
-use rhaki_cw_plus::{math::IntoUint, wasm::WasmMsgBuilder};
+use rhaki_cw_plus::wasm::WasmMsgBuilder;
 
 use crate::{
     error::ContractError,
-    functions::{compute_swap, get_pair_amount},
-    state::{ReplyIds, CONFIG},
+    functions::{compute_swap, get_main_amount, get_pair_amount},
+    query::qy_factory_config,
+    state::CONFIG,
 };
 
 pub fn swap(
@@ -88,15 +87,10 @@ pub fn swap(
         .add_attribute("user", user.to_string()))
 }
 
-pub fn deploy(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    msg: EndFlambeMsg,
-) -> Result<Response, ContractError> {
+pub fn deploy(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.factory {
+    if sender != config.factory {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -107,34 +101,75 @@ pub fn deploy(
     config.status = FlambeStatus::CLOSED;
     CONFIG.save(deps.storage, &config)?;
 
-    let spread_factor =
-        config.flambe_setting.pool_creation_info.spread_factor * 10_u128.pow(18).into_uint128();
+    let paired_balance = get_pair_amount(deps.as_ref(), &env, &config)?;
+    let main_balance = get_main_amount(deps.as_ref(), &env, &config)? - Uint128::one();
+    let price = Decimal::from_ratio(paired_balance + config.virtual_reserve, main_balance);
+    let deploy_amount = paired_balance * (Decimal::one() / price);
+    let burn_amount = main_balance - deploy_amount;
 
-    let msg_swap_fee = if let Some(swap_msg) = msg.swap_msg {
-        Some(MsgSwapExactAmountOut {
-            sender: env.contract.address.to_string(),
-            routes: swap_msg.routes,
-            token_in_max_amount: swap_msg.token_in_max_amount.to_string(),
-            token_out: Some(swap_msg.token_out.into()),
-        })
+    // Register token in dojoswap factory
+
+    let dojoswap_factory = qy_factory_config(deps.as_ref(), &config.factory)?.dojoswap_factory;
+
+    let msg_register = WasmMsg::build_execute(
+        &config.factory,
+        flambe_factory::msgs::ExecuteMsg::RegisterDenomOnDojo,
+        vec![Coin::new(1_u128, config.main_denom.clone())],
+    )?;
+
+    let msg_create_pool = WasmMsg::build_execute(
+        &dojoswap_factory,
+        dojoswap::factory::ExecuteMsg::CreatePair {
+            assets: [
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: config.main_denom.clone(),
+                    },
+                    amount: deploy_amount,
+                },
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: config.flambe_setting.pair_denom.clone(),
+                    },
+                    amount: paired_balance,
+                },
+            ],
+        },
+        vec![
+            Coin::new(deploy_amount.u128(), config.main_denom.clone()),
+            Coin::new(
+                paired_balance.u128(),
+                config.flambe_setting.pair_denom.clone(),
+            ),
+        ],
+    )?;
+
+    let msg_update_status = WasmMsg::build_execute(
+        &config.factory,
+        FactoryExecuteMsg::UpdateFlambeStatus {
+            status: FlambeStatus::CLOSED,
+        },
+        vec![],
+    )?;
+
+    let msg_burn = if burn_amount > Uint128::zero() {
+        Some(CosmosMsg::Bank(BankMsg::Send {
+            to_address: config.burner_addr.to_string(),
+            amount: vec![Coin::new(burn_amount.u128(), config.main_denom.clone())],
+        }))
     } else {
         None
     };
 
-    let msg_create_pool = MsgCreateConcentratedPool {
-        sender: env.contract.address.to_string(),
-        denom0: config.main_denom,
-        denom1: config.flambe_setting.pair_denom,
-        tick_spacing: config.flambe_setting.pool_creation_info.tick_spacing,
-        spread_factor: spread_factor.to_string(),
-    };
+    let msg_private_burn_lps =
+        WasmMsg::build_execute(env.contract.address, ExecuteMsg::PrivateBurnLps, vec![])?;
 
     Ok(Response::new()
-        .add_messages(msg_swap_fee)
-        .add_submessage(SubMsg::reply_on_success(
-            msg_create_pool,
-            ReplyIds::PoolCreation.repr(),
-        )))
+        .add_message(msg_register)
+        .add_message(msg_create_pool)
+        .add_messages(msg_burn)
+        .add_message(msg_private_burn_lps)
+        .add_message(msg_update_status))
 }
 
 pub fn check_to_pending(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
@@ -162,4 +197,40 @@ pub fn check_to_pending(deps: DepsMut, env: Env, sender: Addr) -> Result<Respons
     } else {
         Ok(Response::new())
     }
+}
+
+pub fn burn_lps(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
+    if sender != env.contract.address {
+        return Err(ContractError::Unauthorized {});
+    }
+    let config = CONFIG.load(deps.storage)?;
+    let dojoswap_factory = qy_factory_config(deps.as_ref(), &config.factory)?.dojoswap_factory;
+
+    let lp_token_addr = deps
+        .querier
+        .query_wasm_smart::<PairInfo>(
+            &dojoswap_factory,
+            &dojoswap::factory::QueryMsg::Pair {
+                asset_infos: [
+                    AssetInfo::NativeToken {
+                        denom: config.main_denom.clone(),
+                    },
+                    AssetInfo::NativeToken {
+                        denom: config.flambe_setting.pair_denom.clone(),
+                    },
+                ],
+            },
+        )?
+        .liquidity_token;
+
+    let balance_lp = deps
+        .querier
+        .query_balance(&env.contract.address, lp_token_addr)?;
+
+    let msg_burn = BankMsg::Send {
+        to_address: config.burner_addr.to_string(),
+        amount: vec![balance_lp],
+    };
+
+    Ok(Response::new().add_message(msg_burn))
 }
