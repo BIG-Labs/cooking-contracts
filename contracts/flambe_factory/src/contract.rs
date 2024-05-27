@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult};
 use injective_std::types::injective::tokenfactory::v1beta1::{MsgChangeAdmin, MsgCreateDenom};
+use prost::Message;
 use rhaki_cw_plus::asset::only_one_coin;
 
 use crate::error::ContractError;
@@ -14,10 +15,10 @@ use crate::helper::{
 };
 
 use ratatouille_pkg::flambe_factory::definitions::Config;
-use rhaki_cw_plus::traits::{IntoAddr, IntoBinaryResult};
+use rhaki_cw_plus::traits::{IntoAddr, IntoBinaryResult, IntoStdResult};
 
 use crate::query::{qy_config, qy_flambe, qy_flambes};
-use crate::state::CONFIG;
+use crate::state::{tokens, CONFIG, REPLY_ID_INIT_FLAMBE, TMP};
 
 use ratatouille_pkg::flambe_factory::msgs::{
     ExecuteMsg, FlambeFilter, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -164,6 +165,32 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => qy_config(deps).into_binary(),
         QueryMsg::Flambe { filter } => qy_flambe(deps, filter).into_binary(),
         QueryMsg::Flambes { limit, filter } => qy_flambes(deps, limit, filter).into_binary(),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
+    match reply.id {
+        REPLY_ID_INIT_FLAMBE => {
+            let flambe_addr =
+                injective_std::types::cosmwasm::wasm::v1::MsgInstantiateContractResponse::decode(
+                    reply.result.unwrap().data.unwrap().as_slice(),
+                )
+                .into_std_result()?
+                .address
+                .into_addr(deps.api)?;
+
+            let denom = TMP.load(deps.storage)?;
+
+            tokens().update(deps.storage, denom, |flambe| -> Result<_, ContractError> {
+                let mut flambe = flambe.ok_or(ContractError::InvalidFlambeDenom {})?;
+                flambe.flambe_address = flambe_addr.clone();
+                Ok(flambe)
+            })?;
+
+            Ok(Response::new().add_attribute("flambe_addr", flambe_addr))
+        }
+        _ => return Err(ContractError::InvalidReplyId(reply.id)),
     }
 }
 

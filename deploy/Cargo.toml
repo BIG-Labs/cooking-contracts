@@ -11,3 +11,6 @@ serde                = { workspace = true }
 flambe               = { workspace = true }
 flambe-factory       = { workspace = true }
 ratatouille-pkg      = { workspace = true }
+
+injective-std        = { workspace = true }
+osmosis-std          = "0.25.0"

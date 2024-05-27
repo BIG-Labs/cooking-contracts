@@ -29,4 +29,7 @@ pub enum ContractError {
 
     #[error("Invalid Denom Registration Amount - requested {requested}")]
     InvalidDenomRegistrationAmount { requested: Uint128 },
+
+    #[error("Invalid Reply ID: {0}")]
+    InvalidReplyId(u64),
 }

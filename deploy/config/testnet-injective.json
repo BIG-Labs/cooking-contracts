@@ -12,11 +12,11 @@
     },
     "data": {
         "code_id": {
-            "flabe": null,
-            "flambe_factory": null
+            "flabe": 9208,
+            "flambe_factory": 9207
         },
         "addresses": {
-            "factory": null
+            "factory": "inj1kgx9rqg7dtl27lqqxyw6q0vvuljulj8gn99tme"
         },
         "variables": {
             "burner_addr": null,

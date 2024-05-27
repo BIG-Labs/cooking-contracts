@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{to_json_binary, to_json_vec, Addr, Decimal, Uint128};
 use ratatouille_pkg::flambe_factory::{
     definitions::{
         Config as FactoryConfig, CreateFactoryInput, FlambeFullInfo, FlambeSetting,
@@ -16,7 +16,7 @@ use rhaki_cw_plus::{
         custom_modules::injective::token_factory::{TokenFactoryFee, TokenFactoryModule},
         helper::{
             anyhow::Error as AnyError,
-            build_bech32_app, create_code,
+            build_bech32_app, create_code, create_code_with_reply,
             cw_multi_test::{
                 addons::MockAddressGenerator, no_init, AppResponse, Executor, WasmKeeper,
             },
@@ -24,6 +24,7 @@ use rhaki_cw_plus::{
         },
         multi_stargate_module::{multi_stargate_app_builder, ModuleDb},
     },
+    serde_value::{self, StdValue},
     traits::Unclone,
 };
 
@@ -149,10 +150,11 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
         )
         .unwrap();
 
-    let factory_code_id = app.store_code(create_code(
+    let factory_code_id = app.store_code(create_code_with_reply(
         flambe_factory::contract::instantiate,
         flambe_factory::contract::execute,
         flambe_factory::contract::query,
+        flambe_factory::contract::reply,
     ));
 
     let flambe_code_id = app.store_code(create_code(
@@ -166,6 +168,24 @@ pub fn startup(def: &mut Def) -> OsmosisApp {
 
     def.flambe_code_id = Some(flambe_code_id);
     def.dojoswap_factory = Some(dojoswap_factory);
+
+    let msg = ratatouille_pkg::flambe_factory::msgs::InstantiateMsg {
+        owner: def.owner.to_string(),
+        burner: def.burner.to_string(),
+        swap_fee: def.swap_fee,
+        fee_collector: def.fee_collector.to_string(),
+        flambe_code_id: def.flambe_code_id.unwrap(),
+        flambe_fee_creation: def
+            .flambe_fee_creaton
+            .clone()
+            .map(|val| val.try_into().unwrap()),
+        flambe_settings: def.flambe_settings.clone(),
+        cookie_ratio: def.cookie_ratio,
+        cookie_owner_reward: def.cookie_owner_reward,
+        cookie_token: def.cookie_token.clone(),
+        cook_token: def.cook_token.clone(),
+        dojoswap_factory: def.dojoswap_factory.unclone().to_string(),
+    };
 
     let factory_address = app
         .instantiate_contract(

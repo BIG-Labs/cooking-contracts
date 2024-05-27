@@ -6,6 +6,10 @@ pub const CONFIG: Item<Config> = Item::new("config_key");
 
 pub type StringedDecimal = String;
 
+pub const TMP: Item<String> = Item::new("tmp");
+
+pub const REPLY_ID_INIT_FLAMBE: u64 = 1;
+
 #[index_list(FlambeBaseInfo)]
 pub struct FlambeInfoIndexes<'a> {
     pub status: MultiIndex<'a, String, FlambeBaseInfo, String>,

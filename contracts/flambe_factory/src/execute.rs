@@ -18,14 +18,14 @@ use ratatouille_pkg::{
 use rhaki_cw_plus::{
     asset::only_one_coin,
     storage::multi_index::{get_unique_value, unique_map_value},
-    traits::{IntoAddr, IntoBinary},
-    wasm::{build_instantiate_2, WasmMsgBuilder},
+    traits::IntoAddr,
+    wasm::{CosmosMsgExt, WasmMsgBuilder},
 };
 
 use crate::{
     helper::{create_mint_msg_to_self, create_set_denom_metadata, derive_denom_from_subdenom},
     query::qy_flambe,
-    state::{tokens, CONFIG},
+    state::{tokens, CONFIG, REPLY_ID_INIT_FLAMBE, TMP},
     ContractError,
 };
 
@@ -143,10 +143,7 @@ pub fn create_token_factory(
         new_admin: config.burner.to_string(),
     };
 
-    let (flambe_init, flambe_address) = build_instantiate_2(
-        deps.as_ref(),
-        &env.contract.address,
-        config.counter_flambe.into_binary()?,
+    let msg_init_flambe = Into::<CosmosMsg>::into(WasmMsg::build_init(
         Some(config.owner.to_string()),
         config.flambe_code_id,
         FlambeInstantiateMsg {
@@ -164,7 +161,31 @@ pub fn create_token_factory(
             flambè_token.denom.clone(),
         )],
         "Flambè start.cooking".to_string(),
-    )?;
+    )?)
+    .into_submsg_on_success(REPLY_ID_INIT_FLAMBE, None);
+
+    // let (flambe_init, flambe_address) = build_instantiate_2(
+    //     deps.as_ref(),
+    //     &env.contract.address,
+    //     config.counter_flambe.into_binary()?,
+    //     Some(config.owner.to_string()),
+    //     config.flambe_code_id,
+    //     FlambeInstantiateMsg {
+    //         owner: config.owner.to_string(),
+    //         factory: env.contract.address.to_string(),
+    //         swap_fee: config.swap_fee,
+    //         fee_collector: config.fee_collector.to_string(),
+    //         flambe_setting: flambe_setting.clone(),
+    //         creator: info.sender.to_string(),
+    //         // osmo_fee_creation: config.osmo_pool_fee_creation,
+    //         burner_addr: config.burner.to_string(),
+    //     },
+    //     vec![Coin::new(
+    //         flambe_setting.initial_supply.u128(),
+    //         flambè_token.denom.clone(),
+    //     )],
+    //     "Flambè start.cooking".to_string(),
+    // )?;
 
     let msg_fee_creation = if let Some(fee_creation) = &config.flambe_fee_creation {
         Some(CosmosMsg::Bank(BankMsg::Send {
@@ -175,12 +196,15 @@ pub fn create_token_factory(
         None
     };
 
+    TMP.save(deps.storage, &flambè_token.denom)?;
+
     tokens().save(
         deps.storage,
         flambè_token.denom.clone(),
         &FlambeBaseInfo {
             main_token: flambè_token.clone(),
-            flambe_address: flambe_address.clone(),
+            // Mock the address, will derived in reply because init2 on inj is not working
+            flambe_address: Addr::unchecked("foo"),
             status: FlambeStatus::OPEN,
             flambe_setting: flambe_setting.clone(),
             creator: info.sender,
@@ -198,10 +222,9 @@ pub fn create_token_factory(
         .add_message(msg_mint)
         .add_message(msg_set_metadata)
         .add_message(msg_change_admin)
-        .add_message(flambe_init)
+        .add_submessage(msg_init_flambe)
         .add_messages(msg_fee_creation)
-        .add_attribute("new_denom", flambè_token.denom)
-        .add_attribute("flambe_addr", flambe_address))
+        .add_attribute("new_denom", flambè_token.denom))
 }
 
 pub fn request_pump(

@@ -1,0 +1,39 @@
+{
+    "burner": "inj12vxhuaamfs33sxgnf95lxvzy9lpugpgjsrsxl3",
+    "cook_token": {
+        "description": "cook token",
+        "name": "cook",
+        "total_supply": "1000000",
+        "symbol": "cook",
+        "uri": "https://cook.com",
+        "uri_hash": ""
+    },
+    "cookie_token": {
+        "description": "cookie token",
+        "name": "cookie",
+        "total_supply": "1000000",
+        "symbol": "cookie",
+        "uri": "https://cookie.com",
+        "uri_hash": ""
+    },
+    "cookie_ratio": "10",
+    "cookie_owner_reward": "1000",
+    "dojoswap_factory": "inj14mxpetzg9sur0g6m39zu9m9n2ajxvlx4ytlgq3",
+    "fee_collector": "inj12vxhuaamfs33sxgnf95lxvzy9lpugpgjsrsxl3",
+    "flambe_code_id": 9208,
+    "flambe_fee_creation": {
+        "amount": "1000000000000000000",
+        "denom": "inj"
+    },
+    "flambe_settings": [
+        {
+            "pair_denom": "inj",
+            "pair_decimals": 18,
+            "threshold": "50000000000000000000000",
+            "initial_price": "0.1",
+            "initial_supply": "1000000000000"
+        }
+    ],
+    "owner": "inj12vxhuaamfs33sxgnf95lxvzy9lpugpgjsrsxl3",
+    "swap_fee": "0.01"
+}
