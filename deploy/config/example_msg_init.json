@@ -20,7 +20,7 @@
     "cookie_owner_reward": "1000",
     "dojoswap_factory": "inj14mxpetzg9sur0g6m39zu9m9n2ajxvlx4ytlgq3",
     "fee_collector": "inj12vxhuaamfs33sxgnf95lxvzy9lpugpgjsrsxl3",
-    "flambe_code_id": 9208,
+    "flambe_code_id": 9423,
     "flambe_fee_creation": {
         "amount": "1000000000000000000",
         "denom": "inj"
