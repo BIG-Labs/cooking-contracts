@@ -13,7 +13,7 @@ use rhaki_cw_plus::{
     cw_asset::AssetInfo,
     math::IntoDecimal,
     multi_test::{
-        custom_modules::token_factory::{TokenFactoryFee, TokenFactoryModule},
+        custom_modules::osmosis::token_factory::{TokenFactoryFee, TokenFactoryModule},
         helper::{
             anyhow::Error as AnyError,
             build_bech32_app, create_code, create_code_with_reply,
