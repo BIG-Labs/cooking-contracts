@@ -44,7 +44,7 @@ use rhaki_cw_plus::multi_test::multi_stargate_module::Itemable;
 use rhaki_cw_plus::multi_test::multi_stargate_module::StargateApplication;
 use rhaki_cw_plus::multi_test::multi_stargate_module::StargateUrls;
 use rhaki_cw_plus::multi_test::router::RouterWrapper;
-use rhaki_cw_plus::rhaki_cw_plus_macro::{urls, Stargate};
+use rhaki_cw_plus::{urls, Stargate};
 use rhaki_cw_plus::storage::interfaces::ItemInterface;
 use rhaki_cw_plus::strum_macros;
 use rhaki_cw_plus::traits::IntoAddr;
